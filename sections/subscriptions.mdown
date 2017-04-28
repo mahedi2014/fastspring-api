@@ -1,0 +1,117 @@
+Subscriptions
+=============
+
+Get subscription
+----------------
+
+Returns a single subscription identified by its reference. You can get that reference by defining a [Postback notification](https://support.fastspring.com/entries/236490-api-notifications).
+
+`GET /company/{company}/subscription/{reference}`
+
+``` xml
+<subscription>
+  <status>active | inactive</status>
+  <statusChanged>2010-08-15T00:00:00.000Z</statusChanged>
+  <statusReason>canceled-non-payment | completed | canceled</statusReason>
+  <cancelable>true | false</cancelable>
+  <reference/>
+  <test>true | false</test>
+  <referrer/>
+  <sourceName/>
+  <sourceKey/>
+  <sourceCampaign/>
+  <customer>
+    <firstName/>
+    <lastName/>
+    <company/>
+    <email/>
+    <phoneNumber/>
+  </customer>
+  <customerUrl/>
+  <productName/>
+  <tags/>
+  <quantity>0</quantity>
+  <coupon/>
+  <nextPeriodDate>2010-08-15Z</nextPeriodDate>
+  <end>2010-08-15Z</end>
+</subscription>
+```
+
+Example:
+
+``` shell
+curl -i -X GET -u {username}:{password} https://api.fastspring.com/company/{company}/subscription/{reference}
+```
+
+
+Update subscription
+-------------------
+
+Updates an existing subscription. All elements are optional.
+
+* `firstName` First name
+* `lastName` Last name
+* `company` Company name or empty
+* `email` Email address
+* `phoneNumber` Phone number
+* `productPath` Partial URL Path. E.g. /plana. See [Page Linking Options](https://support.fastspring.com/entries/20773966-page-linking-options).
+* `quantity` Value greater than zero.
+* `tags` Comma separated tag names and values.
+* `no-end-date` No content. If present the end-date will be removed.
+* `coupon` Coupon code to apply.
+* `discount-duration` Either absolute (1, 3, ...), relative (+1, +2, -3, ...) or an empty value. A `discount-duration` needs always a `coupon`. That coupon needs to be set either before or in the same request. Empty means that the discount will be unlimited. If discount duration falls below 1 (either via absolute or relative requests) we'll remove the coupon (and thus discount) from that subscription.
+* `proration` If `true` a prorated refund will be made to reimburse the customer for their current use. See [Upgrading / Downgrading / Changing Plans](https://support.fastspring.com/entries/20077837-upgrading-downgrading-changing-plans).
+
+`PUT /company/{company}/subscription/{reference}`
+
+* Returns `200: OK` on success. The response contains updated subscription data. See [Get Subscription](#get-subscription).
+* Returns `403: Forbidden` if un-canceling isn't possible anymore.
+* Returns `400: Bad Request` if the request was invalid. The response will contain a detailed description.
+* Returns `422: Unprocessable entity` if productPath was unknown.
+* Returns `412: Precondition Failed [error_code]` if it wasn't able to perform the update. Error codes: not-changeable, discount-zero-or-less, end-date-not-supported, end-date-too-early, next-period-date-empty, next-period-date-not-supported-on-demand, next-period-date-too-early, proration-not-supported-on-demand, proration-not-supported-not-started, proration-not-supported-refund-period-expired, quantity-zero-or-less, invalid-coupon, invalid-subtotal.
+* Returns `500: Internal Server Error` if an unexpected server error happened.
+
+Example: 
+``` shell
+curl -i -X PUT -H 'Content-Type: application/xml' -u {username}:{password} -d '<subscription><productPath>/plana</productPath><quantity>10</quantity><tags>tagWithQuantity=5,tag2,tag3</tags><no-end-date/><coupon>TSTCPN</coupon><discount-duration>1</discount-duration><proration>true</proration></subscription>' https://api.fastspring.com/company/{company}/subscription/{reference}
+```
+
+
+Cancel subscription
+-------------------
+
+The delete action causes the cancellation of a subscription at next period.
+
+`DELETE /company/{company}/subscription/{reference}`
+
+Returns HTTP status code 200 on success.
+
+Example:
+
+``` shell
+curl -i -X DELETE -H 'Content-Type: application/xml' -u {username}:{password} https://api.fastspring.com/company/{company}/subscription/{reference}
+```
+
+
+Renew subscription
+------------------
+
+Renews the subscription according to the predefined conditions. **Applies to On-Demand subscriptions only. Renews are limited to 1 per day / 4 successful per 30 days.**
+
+`POST /company/{company}/subscription/{reference}/renew`
+
+* Returns `201 Created https://api.fastspring.com/company/{company}/order/{reference}` if the renew was successful and an order has been created.
+* Returns `422: Unprocessable entity [error_code]` if it wasn't able to create an order. The subscription will fall into dunning mode and a notification will be sent. See [Payment Follow-up Notifications and Reminders](https://support.fastspring.com/entries/236467-payment-follow-up-notifications-and-reminders). Error codes: subscription-not-active, rebill-limit-exceeded, next-charge-not-due, unsupported-country, expired-card, declined, risk, processor-risk, unknown, cc-address-verification, cc-cvv, voice-auth
+* Returns `503: Service Unavailable` if the subscription isn't of type on-demand or if the subscription fell into dunning mode due to a failed payment (see 422).
+
+Example:
+
+``` shell
+curl -i -X POST -u {username}:{password} https://api.fastspring.com/company/{company}/subscription/{reference}/renew
+```
+
+For testing purposes the API accepts a simulate parameter containing either 'success' or 'failure':
+
+``` shell
+curl -i -X POST -u {username}:{password} -d 'simulate=failure' https://api.fastspring.com/company/{company}/subscription/{reference}/renew
+```
